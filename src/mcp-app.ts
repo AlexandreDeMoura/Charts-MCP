@@ -28,13 +28,25 @@ const DEFAULT_COLORS = [
 ];
 
 const chartNode = document.getElementById("chart");
+const legendNode = document.getElementById("legend");
+const titleNode = document.getElementById("chart-title");
+const totalNode = document.getElementById("chart-total");
 const tooltipNode = document.getElementById("tooltip");
 
-if (!(chartNode instanceof HTMLElement) || !(tooltipNode instanceof HTMLElement)) {
+if (
+  !(chartNode instanceof HTMLElement) ||
+  !(legendNode instanceof HTMLElement) ||
+  !(titleNode instanceof HTMLElement) ||
+  !(totalNode instanceof HTMLElement) ||
+  !(tooltipNode instanceof HTMLElement)
+) {
   throw new Error("Missing required chart DOM elements.");
 }
 
 const chartElement: HTMLElement = chartNode;
+const legendElement: HTMLElement = legendNode;
+const titleElement: HTMLElement = titleNode;
+const totalElement: HTMLElement = totalNode;
 const tooltipElement: HTMLElement = tooltipNode;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -173,8 +185,17 @@ function hideTooltip(): void {
   tooltipElement.hidden = true;
 }
 
+function formatNumber(value: number): string {
+  return value.toLocaleString(undefined, {
+    maximumFractionDigits: 2,
+  });
+}
+
 function renderPieChart(data: PieData): void {
   chartElement.innerHTML = "";
+  legendElement.innerHTML = "";
+  titleElement.textContent = data.title;
+  totalElement.textContent = `Total ${formatNumber(data.total)}`;
 
   const size = 360;
   const center = size / 2;
@@ -186,8 +207,20 @@ function renderPieChart(data: PieData): void {
   svg.setAttribute("aria-label", data.title);
 
   let startAngle = 0;
+  const paths: SVGPathElement[] = [];
+  const legendItems: HTMLLIElement[] = [];
 
-  data.slices.forEach((slice) => {
+  const setActiveSlice = (activeIndex: number | null): void => {
+    paths.forEach((path, index) => {
+      path.classList.toggle("is-active", index === activeIndex);
+    });
+
+    legendItems.forEach((item, index) => {
+      item.classList.toggle("is-active", index === activeIndex);
+    });
+  };
+
+  data.slices.forEach((slice, index) => {
     const sweep = (slice.value / data.total) * 360;
     if (sweep <= 0) {
       return;
@@ -198,10 +231,12 @@ function renderPieChart(data: PieData): void {
     path.setAttribute("fill", slice.color);
     path.setAttribute("class", "slice");
     path.setAttribute("tabindex", "0");
+    paths.push(path);
 
-    const tooltipText = `${slice.label}: ${slice.value} (${slice.percentage.toFixed(2)}%)`;
+    const tooltipText = `${slice.label}: ${formatNumber(slice.value)} (${slice.percentage.toFixed(2)}%)`;
 
     path.addEventListener("pointerenter", (event) => {
+      setActiveSlice(index);
       showTooltip(tooltipText, event.clientX, event.clientY);
     });
 
@@ -210,22 +245,68 @@ function renderPieChart(data: PieData): void {
     });
 
     path.addEventListener("pointerleave", () => {
+      setActiveSlice(null);
       hideTooltip();
     });
 
     path.addEventListener("focus", () => {
+      setActiveSlice(index);
       const rect = path.getBoundingClientRect();
       showTooltip(tooltipText, rect.left + rect.width / 2, rect.top + rect.height / 2);
     });
 
     path.addEventListener("blur", () => {
+      setActiveSlice(null);
       hideTooltip();
     });
 
+    const legendItem = document.createElement("li");
+    legendItem.className = "legend-item";
+    legendItem.tabIndex = 0;
+
+    const swatch = document.createElement("span");
+    swatch.className = "legend-swatch";
+    swatch.style.backgroundColor = slice.color;
+
+    const label = document.createElement("span");
+    label.className = "legend-label";
+    label.textContent = slice.label;
+
+    const value = document.createElement("span");
+    value.className = "legend-value";
+    value.textContent = `${formatNumber(slice.value)} • ${slice.percentage.toFixed(1)}%`;
+
+    legendItem.append(swatch, label, value);
+    legendItems.push(legendItem);
+
+    legendItem.addEventListener("pointerenter", () => {
+      setActiveSlice(index);
+      const rect = legendItem.getBoundingClientRect();
+      showTooltip(tooltipText, rect.left + rect.width / 2, rect.top + rect.height / 2);
+    });
+
+    legendItem.addEventListener("pointerleave", () => {
+      setActiveSlice(null);
+      hideTooltip();
+    });
+
+    legendItem.addEventListener("focus", () => {
+      setActiveSlice(index);
+      const rect = legendItem.getBoundingClientRect();
+      showTooltip(tooltipText, rect.left + rect.width / 2, rect.top + rect.height / 2);
+    });
+
+    legendItem.addEventListener("blur", () => {
+      setActiveSlice(null);
+      hideTooltip();
+    });
+
+    legendElement.appendChild(legendItem);
     svg.appendChild(path);
     startAngle += sweep;
   });
 
+  setActiveSlice(null);
   chartElement.appendChild(svg);
 }
 
@@ -263,7 +344,10 @@ function applyHostContextStyling(ctx: Record<string, unknown> | undefined): void
     const bottom = typeof ctx.safeAreaInsets.bottom === "number" ? ctx.safeAreaInsets.bottom : 0;
     const left = typeof ctx.safeAreaInsets.left === "number" ? ctx.safeAreaInsets.left : 0;
 
-    document.body.style.padding = `${top}px ${right}px ${bottom}px ${left}px`;
+    document.documentElement.style.setProperty("--safe-area-top", `${top}px`);
+    document.documentElement.style.setProperty("--safe-area-right", `${right}px`);
+    document.documentElement.style.setProperty("--safe-area-bottom", `${bottom}px`);
+    document.documentElement.style.setProperty("--safe-area-left", `${left}px`);
   }
 }
 

@@ -38,7 +38,7 @@ function createServer(): McpServer {
     RESOURCE_URI,
     {
       title: "Pie Chart Sandbox",
-      description: "Sandbox UI that renders an interactive pie chart.",
+      description: "Sandbox UI that renders an interactive pie chart with a legend.",
     },
     async () => ({
       contents: [
@@ -57,7 +57,7 @@ function createServer(): McpServer {
     {
       title: "Render Pie Chart",
       description:
-        "Render a pie chart in the sandbox UI. The textual response includes the data summary while the UI contains only the chart.",
+        "Render a pie chart in the sandbox UI. The textual response includes the data summary while the UI contains the chart and legend.",
       inputSchema: {
         title: z.string().optional().describe("Optional chart title for textual output context."),
         slices: z
@@ -123,7 +123,7 @@ function createServer(): McpServer {
               "",
               ...textLines,
               "",
-              "Interactive chart is rendered in the sandbox. Hover slices to see details.",
+              "Interactive chart and legend are rendered in the sandbox. Hover slices or legend items to see details.",
             ].join("\n"),
           },
         ],
