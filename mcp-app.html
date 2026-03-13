@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pie Chart</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      body {
+        display: grid;
+        place-items: center;
+        background: var(--color-background-primary, #ffffff);
+      }
+
+      #chart {
+        width: min(92vw, 360px);
+        aspect-ratio: 1;
+      }
+
+      #chart svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      .slice {
+        transition: opacity 120ms ease;
+      }
+
+      .slice:hover,
+      .slice:focus-visible {
+        opacity: 0.82;
+        outline: none;
+      }
+
+      #tooltip {
+        position: fixed;
+        z-index: 1000;
+        pointer-events: none;
+        background: color-mix(in srgb, var(--color-background-secondary, #111827) 92%, transparent);
+        color: var(--color-text-primary, #f8fafc);
+        border: 1px solid color-mix(in srgb, var(--color-border-default, #94a3b8) 65%, transparent);
+        border-radius: 8px;
+        padding: 6px 8px;
+        font: 12px/1.3 var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+        white-space: nowrap;
+        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.2);
+      }
+
+      #tooltip[hidden] {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="chart" aria-label="Interactive pie chart"></div>
+    <div id="tooltip" hidden></div>
+    <script type="module" src="/src/mcp-app.ts"></script>
+  </body>
+</html>
