@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Pie Chart</title>
+    <title>Charts</title>
     <style>
       :root {
         color-scheme: light dark;
@@ -82,13 +82,20 @@
 
       #chart {
         width: 100%;
-        aspect-ratio: 1;
       }
 
       #chart svg {
         width: 100%;
         height: 100%;
         display: block;
+      }
+
+      #chart.chart--pie {
+        aspect-ratio: 1;
+      }
+
+      #chart.chart--funnel {
+        height: min(66vh, 560px);
       }
 
       .slice {
@@ -104,6 +111,23 @@
       .slice.is-active {
         opacity: 1;
         stroke-width: 2.8;
+        outline: none;
+      }
+
+      .funnel-segment {
+        cursor: pointer;
+        opacity: 0.92;
+        stroke: color-mix(in srgb, var(--color-background-secondary, #ffffff) 78%, transparent);
+        stroke-width: 1.4;
+        transition: opacity 140ms ease, stroke-width 140ms ease, filter 140ms ease;
+      }
+
+      .funnel-segment:hover,
+      .funnel-segment:focus-visible,
+      .funnel-segment.is-active {
+        opacity: 1;
+        stroke-width: 2.8;
+        filter: saturate(1.03) brightness(1.02);
         outline: none;
       }
 
@@ -203,17 +227,22 @@
           width: min(76vw, 300px);
           margin: 0 auto;
         }
+
+        #chart.chart--funnel {
+          width: min(86vw, 320px);
+          height: min(60vh, 500px);
+        }
       }
     </style>
   </head>
   <body>
-    <main id="sandbox-card" aria-label="Pie chart sandbox container">
+    <main id="sandbox-card" aria-label="Chart sandbox container">
       <header id="chart-header">
-        <h1 id="chart-title">Pie Chart</h1>
+        <h1 id="chart-title">Charts</h1>
         <p id="chart-total"></p>
       </header>
       <section id="chart-layout">
-        <div id="chart" aria-label="Interactive pie chart"></div>
+        <div id="chart" class="chart--pie" aria-label="Interactive chart"></div>
         <ul id="legend" aria-label="Chart legend"></ul>
       </section>
     </main>

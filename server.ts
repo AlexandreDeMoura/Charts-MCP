@@ -26,6 +26,14 @@ const DEFAULT_COLORS = [
 const port = Number.parseInt(process.env.PORT ?? process.env.MCP_PORT ?? "3003", 10);
 const host = process.env.HOST ?? "127.0.0.1";
 
+function isHexColor(value: string | undefined): value is string {
+  return /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value ?? "");
+}
+
+function pickColor(color: string | undefined, index: number): string {
+  return isHexColor(color) ? color : DEFAULT_COLORS[index % DEFAULT_COLORS.length];
+}
+
 function createServer(): McpServer {
   const server = new McpServer({
     name: "charts-mcp-server",
@@ -34,11 +42,11 @@ function createServer(): McpServer {
 
   registerAppResource(
     server,
-    "Pie Chart Sandbox",
+    "Charts Sandbox",
     RESOURCE_URI,
     {
-      title: "Pie Chart Sandbox",
-      description: "Sandbox UI that renders an interactive pie chart with a legend.",
+      title: "Charts Sandbox",
+      description: "Sandbox UI that renders interactive charts with hover tooltip and legend.",
     },
     async () => ({
       contents: [
@@ -98,13 +106,12 @@ function createServer(): McpServer {
 
       const normalizedSlices = slices.map((slice, index) => {
         const percentage = total > 0 ? (slice.value / total) * 100 : 0;
-        const hasValidColor = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(slice.color ?? "");
 
         return {
           label: slice.label,
           value: slice.value,
           percentage: Number(percentage.toFixed(2)),
-          color: hasValidColor ? (slice.color as string) : DEFAULT_COLORS[index % DEFAULT_COLORS.length],
+          color: pickColor(slice.color, index),
         };
       });
 
@@ -131,6 +138,97 @@ function createServer(): McpServer {
           title: chartTitle,
           total,
           slices: normalizedSlices,
+        },
+      };
+    },
+  );
+
+  registerAppTool(
+    server,
+    "render_funnel_chart",
+    {
+      title: "Render Funnel Chart",
+      description:
+        "Render a vertical funnel chart in the sandbox UI. The first step is shown on top and the last step on the bottom, with interactive tooltip and legend.",
+      inputSchema: {
+        title: z.string().optional().describe("Optional chart title for textual output context."),
+        steps: z
+          .array(
+            z.object({
+              label: z.string().min(1).describe("Funnel step label."),
+              value: z.number().positive().describe("Step value (must be > 0)."),
+              color: z
+                .string()
+                .optional()
+                .describe("Optional hex color for this step (for example #1f77b4)."),
+            }),
+          )
+          .min(1)
+          .describe("Ordered funnel steps from top (entry) to bottom (final conversion)."),
+      },
+      outputSchema: {
+        title: z.string(),
+        total: z.number(),
+        steps: z.array(
+          z.object({
+            label: z.string(),
+            value: z.number(),
+            percentage: z.number(),
+            dropOff: z.number(),
+            color: z.string(),
+          }),
+        ),
+      },
+      _meta: {
+        ui: {
+          resourceUri: RESOURCE_URI,
+          visibility: ["model", "app"],
+        },
+      },
+    },
+    async ({ title, steps }) => {
+      const total = steps.reduce((sum, step) => sum + step.value, 0);
+      const firstStepValue = steps[0].value;
+
+      const normalizedSteps = steps.map((step, index) => {
+        const previousValue = index > 0 ? steps[index - 1].value : step.value;
+        const percentage = firstStepValue > 0 ? (step.value / firstStepValue) * 100 : 0;
+        const dropOff = index > 0 ? Math.max(previousValue - step.value, 0) : 0;
+
+        return {
+          label: step.label,
+          value: step.value,
+          percentage: Number(percentage.toFixed(2)),
+          dropOff,
+          color: pickColor(step.color, index),
+        };
+      });
+
+      const chartTitle = title?.trim() ? title.trim() : "Funnel Chart";
+      const textLines = normalizedSteps.map(
+        (step) =>
+          `- ${step.label}: ${step.value} (${step.percentage.toFixed(2)}% of first step, drop-off ${step.dropOff})`,
+      );
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: [
+              `${chartTitle}`,
+              `Start: ${firstStepValue}`,
+              `Total across steps: ${total}`,
+              "",
+              ...textLines,
+              "",
+              "Interactive vertical funnel and legend are rendered in the sandbox. Hover funnel steps or legend items to see details.",
+            ].join("\n"),
+          },
+        ],
+        structuredContent: {
+          title: chartTitle,
+          total,
+          steps: normalizedSteps,
         },
       };
     },

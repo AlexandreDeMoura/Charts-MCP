@@ -1,5 +1,6 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables } from "@modelcontextprotocol/ext-apps";
 
+import { createFunnelChartView } from "./charts/funnel";
 import { createPieChartView } from "./charts/pie";
 
 const chartNode = document.getElementById("chart");
@@ -26,10 +27,25 @@ const pieChartView = createPieChartView({
   tooltipElement: tooltipNode,
 });
 
+const funnelChartView = createFunnelChartView({
+  chartElement: chartNode,
+  legendElement: legendNode,
+  titleElement: titleNode,
+  totalElement: totalNode,
+  tooltipElement: tooltipNode,
+});
+
 const app = new App({
-  name: "pie-chart-view",
+  name: "charts-view",
   version: "1.0.0",
 });
+
+type ChartView = {
+  renderFromUnknown(raw: unknown): boolean;
+  hideTooltip(): void;
+};
+
+const chartViews: ChartView[] = [funnelChartView, pieChartView];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -72,16 +88,18 @@ function applyHostContextStyling(ctx: Record<string, unknown> | undefined): void
 }
 
 app.ontoolinput = (params) => {
-  pieChartView.renderFromUnknown(params.arguments);
+  chartViews.some((view) => view.renderFromUnknown(params.arguments));
 };
 
 app.ontoolresult = (params) => {
   if (params.isError) {
-    pieChartView.hideTooltip();
+    chartViews.forEach((view) => view.hideTooltip());
     return;
   }
 
-  pieChartView.renderFromUnknown((params as { structuredContent?: unknown }).structuredContent);
+  chartViews.some((view) =>
+    view.renderFromUnknown((params as { structuredContent?: unknown }).structuredContent),
+  );
 };
 
 app.onhostcontextchanged = (ctx) => {
@@ -89,7 +107,7 @@ app.onhostcontextchanged = (ctx) => {
 };
 
 app.onteardown = async () => {
-  pieChartView.hideTooltip();
+  chartViews.forEach((view) => view.hideTooltip());
   return {};
 };
 
@@ -99,5 +117,5 @@ async function bootstrap(): Promise<void> {
 }
 
 bootstrap().catch((error) => {
-  console.error("Failed to initialize pie chart app:", error);
+  console.error("Failed to initialize charts app:", error);
 });
