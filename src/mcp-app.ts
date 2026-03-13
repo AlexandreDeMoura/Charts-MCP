@@ -1,31 +1,6 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables } from "@modelcontextprotocol/ext-apps";
 
-type PieSlice = {
-  label: string;
-  value: number;
-  percentage: number;
-  color: string;
-};
-
-type PieData = {
-  title: string;
-  total: number;
-  slices: PieSlice[];
-};
-
-const SVG_NS = "http://www.w3.org/2000/svg";
-const DEFAULT_COLORS = [
-  "#1f77b4",
-  "#ff7f0e",
-  "#2ca02c",
-  "#d62728",
-  "#9467bd",
-  "#8c564b",
-  "#e377c2",
-  "#7f7f7f",
-  "#bcbd22",
-  "#17becf",
-];
+import { createPieChartView } from "./charts/pie";
 
 const chartNode = document.getElementById("chart");
 const legendNode = document.getElementById("legend");
@@ -43,277 +18,22 @@ if (
   throw new Error("Missing required chart DOM elements.");
 }
 
-const chartElement: HTMLElement = chartNode;
-const legendElement: HTMLElement = legendNode;
-const titleElement: HTMLElement = titleNode;
-const totalElement: HTMLElement = totalNode;
-const tooltipElement: HTMLElement = tooltipNode;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function normalizeHexColor(value: unknown, fallbackIndex: number): string {
-  if (typeof value === "string" && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value)) {
-    return value;
-  }
-
-  return DEFAULT_COLORS[fallbackIndex % DEFAULT_COLORS.length];
-}
-
-function normalizePieInput(raw: unknown): PieData | null {
-  if (!isRecord(raw)) {
-    return null;
-  }
-
-  const inputSlices = raw.slices;
-  if (!Array.isArray(inputSlices) || inputSlices.length === 0) {
-    return null;
-  }
-
-  const normalizedSlices: PieSlice[] = inputSlices
-    .map((slice, index) => {
-      if (!isRecord(slice) || typeof slice.label !== "string" || typeof slice.value !== "number") {
-        return null;
-      }
-
-      if (!Number.isFinite(slice.value) || slice.value <= 0) {
-        return null;
-      }
-
-      const normalizedPercentage =
-        typeof slice.percentage === "number" && Number.isFinite(slice.percentage)
-          ? slice.percentage
-          : 0;
-
-      return {
-        label: slice.label,
-        value: slice.value,
-        percentage: normalizedPercentage,
-        color: normalizeHexColor(slice.color, index),
-      };
-    })
-    .filter((slice): slice is PieSlice => slice !== null);
-
-  if (normalizedSlices.length === 0) {
-    return null;
-  }
-
-  const inputTotal = typeof raw.total === "number" && Number.isFinite(raw.total) ? raw.total : 0;
-  const total = inputTotal > 0 ? inputTotal : normalizedSlices.reduce((sum, slice) => sum + slice.value, 0);
-
-  if (!Number.isFinite(total) || total <= 0) {
-    return null;
-  }
-
-  const slices = normalizedSlices.map((slice) => {
-    const percentage = slice.percentage > 0 ? slice.percentage : (slice.value / total) * 100;
-
-    return {
-      ...slice,
-      percentage,
-    };
-  });
-
-  return {
-    title: typeof raw.title === "string" && raw.title.trim() ? raw.title.trim() : "Pie Chart",
-    total,
-    slices,
-  };
-}
-
-function polarToCartesian(centerX: number, centerY: number, radius: number, angleInDegrees: number) {
-  const angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180;
-  return {
-    x: centerX + radius * Math.cos(angleInRadians),
-    y: centerY + radius * Math.sin(angleInRadians),
-  };
-}
-
-function buildSlicePath(
-  centerX: number,
-  centerY: number,
-  radius: number,
-  startAngle: number,
-  endAngle: number,
-): string {
-  const sweep = endAngle - startAngle;
-
-  if (sweep >= 360) {
-    return [
-      `M ${centerX} ${centerY}`,
-      `m 0 -${radius}`,
-      `a ${radius} ${radius} 0 1 1 0 ${radius * 2}`,
-      `a ${radius} ${radius} 0 1 1 0 -${radius * 2}`,
-      "z",
-    ].join(" ");
-  }
-
-  const start = polarToCartesian(centerX, centerY, radius, startAngle);
-  const end = polarToCartesian(centerX, centerY, radius, endAngle);
-  const largeArcFlag = sweep > 180 ? "1" : "0";
-
-  return [
-    `M ${centerX} ${centerY}`,
-    `L ${start.x} ${start.y}`,
-    `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${end.x} ${end.y}`,
-    "Z",
-  ].join(" ");
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
-}
-
-function moveTooltip(x: number, y: number): void {
-  const margin = 8;
-  const offset = 12;
-  const maxX = window.innerWidth - tooltipElement.offsetWidth - margin;
-  const maxY = window.innerHeight - tooltipElement.offsetHeight - margin;
-
-  tooltipElement.style.left = `${clamp(x + offset, margin, maxX)}px`;
-  tooltipElement.style.top = `${clamp(y + offset, margin, maxY)}px`;
-}
-
-function showTooltip(text: string, x: number, y: number): void {
-  tooltipElement.textContent = text;
-  tooltipElement.hidden = false;
-  moveTooltip(x, y);
-}
-
-function hideTooltip(): void {
-  tooltipElement.hidden = true;
-}
-
-function formatNumber(value: number): string {
-  return value.toLocaleString(undefined, {
-    maximumFractionDigits: 2,
-  });
-}
-
-function renderPieChart(data: PieData): void {
-  chartElement.innerHTML = "";
-  legendElement.innerHTML = "";
-  titleElement.textContent = data.title;
-  totalElement.textContent = `Total ${formatNumber(data.total)}`;
-
-  const size = 360;
-  const center = size / 2;
-  const radius = 160;
-
-  const svg = document.createElementNS(SVG_NS, "svg");
-  svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
-  svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", data.title);
-
-  let startAngle = 0;
-  const paths: SVGPathElement[] = [];
-  const legendItems: HTMLLIElement[] = [];
-
-  const setActiveSlice = (activeIndex: number | null): void => {
-    paths.forEach((path, index) => {
-      path.classList.toggle("is-active", index === activeIndex);
-    });
-
-    legendItems.forEach((item, index) => {
-      item.classList.toggle("is-active", index === activeIndex);
-    });
-  };
-
-  data.slices.forEach((slice, index) => {
-    const sweep = (slice.value / data.total) * 360;
-    if (sweep <= 0) {
-      return;
-    }
-
-    const path = document.createElementNS(SVG_NS, "path");
-    path.setAttribute("d", buildSlicePath(center, center, radius, startAngle, startAngle + sweep));
-    path.setAttribute("fill", slice.color);
-    path.setAttribute("class", "slice");
-    path.setAttribute("tabindex", "0");
-    paths.push(path);
-
-    const tooltipText = `${slice.label}: ${formatNumber(slice.value)} (${slice.percentage.toFixed(2)}%)`;
-
-    path.addEventListener("pointerenter", (event) => {
-      setActiveSlice(index);
-      showTooltip(tooltipText, event.clientX, event.clientY);
-    });
-
-    path.addEventListener("pointermove", (event) => {
-      moveTooltip(event.clientX, event.clientY);
-    });
-
-    path.addEventListener("pointerleave", () => {
-      setActiveSlice(null);
-      hideTooltip();
-    });
-
-    path.addEventListener("focus", () => {
-      setActiveSlice(index);
-      const rect = path.getBoundingClientRect();
-      showTooltip(tooltipText, rect.left + rect.width / 2, rect.top + rect.height / 2);
-    });
-
-    path.addEventListener("blur", () => {
-      setActiveSlice(null);
-      hideTooltip();
-    });
-
-    const legendItem = document.createElement("li");
-    legendItem.className = "legend-item";
-    legendItem.tabIndex = 0;
-
-    const swatch = document.createElement("span");
-    swatch.className = "legend-swatch";
-    swatch.style.backgroundColor = slice.color;
-
-    const label = document.createElement("span");
-    label.className = "legend-label";
-    label.textContent = slice.label;
-
-    const value = document.createElement("span");
-    value.className = "legend-value";
-    value.textContent = `${formatNumber(slice.value)} • ${slice.percentage.toFixed(1)}%`;
-
-    legendItem.append(swatch, label, value);
-    legendItems.push(legendItem);
-
-    legendItem.addEventListener("pointerenter", () => {
-      setActiveSlice(index);
-      const rect = legendItem.getBoundingClientRect();
-      showTooltip(tooltipText, rect.left + rect.width / 2, rect.top + rect.height / 2);
-    });
-
-    legendItem.addEventListener("pointerleave", () => {
-      setActiveSlice(null);
-      hideTooltip();
-    });
-
-    legendItem.addEventListener("focus", () => {
-      setActiveSlice(index);
-      const rect = legendItem.getBoundingClientRect();
-      showTooltip(tooltipText, rect.left + rect.width / 2, rect.top + rect.height / 2);
-    });
-
-    legendItem.addEventListener("blur", () => {
-      setActiveSlice(null);
-      hideTooltip();
-    });
-
-    legendElement.appendChild(legendItem);
-    svg.appendChild(path);
-    startAngle += sweep;
-  });
-
-  setActiveSlice(null);
-  chartElement.appendChild(svg);
-}
+const pieChartView = createPieChartView({
+  chartElement: chartNode,
+  legendElement: legendNode,
+  titleElement: titleNode,
+  totalElement: totalNode,
+  tooltipElement: tooltipNode,
+});
 
 const app = new App({
   name: "pie-chart-view",
   version: "1.0.0",
 });
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
 
 function applyHostContextStyling(ctx: Record<string, unknown> | undefined): void {
   if (!ctx) {
@@ -352,22 +72,16 @@ function applyHostContextStyling(ctx: Record<string, unknown> | undefined): void
 }
 
 app.ontoolinput = (params) => {
-  const data = normalizePieInput(params.arguments);
-  if (data) {
-    renderPieChart(data);
-  }
+  pieChartView.renderFromUnknown(params.arguments);
 };
 
 app.ontoolresult = (params) => {
   if (params.isError) {
-    hideTooltip();
+    pieChartView.hideTooltip();
     return;
   }
 
-  const data = normalizePieInput((params as { structuredContent?: unknown }).structuredContent);
-  if (data) {
-    renderPieChart(data);
-  }
+  pieChartView.renderFromUnknown((params as { structuredContent?: unknown }).structuredContent);
 };
 
 app.onhostcontextchanged = (ctx) => {
@@ -375,7 +89,7 @@ app.onhostcontextchanged = (ctx) => {
 };
 
 app.onteardown = async () => {
-  hideTooltip();
+  pieChartView.hideTooltip();
   return {};
 };
 
