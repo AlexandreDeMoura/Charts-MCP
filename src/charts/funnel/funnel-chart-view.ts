@@ -171,7 +171,9 @@ export function createFunnelChartView(dom: FunnelChartDom): FunnelChartView {
     chartElement.classList.add("chart--funnel");
     chartElement.classList.remove("chart--pie");
     titleElement.textContent = data.title;
-    totalElement.textContent = `Start ${formatNumber(data.steps[0].value)} • Total ${formatNumber(data.total)}`;
+    const startValue = data.steps[0].value;
+    const endValue = data.steps[data.steps.length - 1].value;
+    totalElement.textContent = `Start ${formatNumber(startValue)} • End ${formatNumber(endValue)}`;
 
     const width = 360;
     const height = 560;
