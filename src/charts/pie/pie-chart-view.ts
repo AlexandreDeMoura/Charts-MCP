@@ -186,7 +186,7 @@ export function createPieChartView(dom: PieChartDom): PieChartView {
     chartElement.innerHTML = "";
     legendElement.innerHTML = "";
     chartElement.classList.add("chart--pie");
-    chartElement.classList.remove("chart--funnel");
+    chartElement.classList.remove("chart--funnel", "chart--distribution");
     titleElement.textContent = data.title;
     totalElement.textContent = `Total ${formatNumber(data.total)}`;
 

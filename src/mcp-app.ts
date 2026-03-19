@@ -1,5 +1,6 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables } from "@modelcontextprotocol/ext-apps";
 
+import { createDistributionChartView } from "./charts/distribution";
 import { createFunnelChartView } from "./charts/funnel";
 import { createPieChartView } from "./charts/pie";
 
@@ -61,6 +62,14 @@ const funnelChartView = createFunnelChartView({
   tooltipElement,
 });
 
+const distributionChartView = createDistributionChartView({
+  chartElement,
+  legendElement,
+  titleElement,
+  totalElement,
+  tooltipElement,
+});
+
 const app = new App({
   name: "charts-view",
   version: "1.0.0",
@@ -99,7 +108,7 @@ type SvgExportPayload = {
   height: number;
 };
 
-const chartViews: ChartView[] = [funnelChartView, pieChartView];
+const chartViews: ChartView[] = [distributionChartView, funnelChartView, pieChartView];
 let exportMenuOpen = false;
 let exportInProgress = false;
 
@@ -150,7 +159,11 @@ function sanitizeFilenameSegment(value: string): string {
     .slice(0, 64);
 }
 
-function inferChartKind(): "pie" | "funnel" | "chart" {
+function inferChartKind(): "distribution" | "pie" | "funnel" | "chart" {
+  if (chartElement.classList.contains("chart--distribution")) {
+    return "distribution";
+  }
+
   if (chartElement.classList.contains("chart--funnel")) {
     return "funnel";
   }

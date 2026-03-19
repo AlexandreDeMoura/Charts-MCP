@@ -22,6 +22,8 @@ const DEFAULT_COLORS = [
   "#bcbd22",
   "#17becf",
 ];
+const DISTRIBUTION_NEUTRAL_COLOR = "#6b7280";
+const DISTRIBUTION_HIGHLIGHT_COLOR = "#3b82f6";
 
 const port = Number.parseInt(process.env.PORT ?? process.env.MCP_PORT ?? "3003", 10);
 const host = process.env.HOST ?? "127.0.0.1";
@@ -32,6 +34,15 @@ function isHexColor(value: string | undefined): value is string {
 
 function pickColor(color: string | undefined, index: number): string {
   return isHexColor(color) ? color : DEFAULT_COLORS[index % DEFAULT_COLORS.length];
+}
+
+function pickDistributionColor(color: string | undefined, index: number, totalBins: number): string {
+  if (isHexColor(color)) {
+    return color;
+  }
+
+  const highlightStartIndex = Math.floor(totalBins / 2);
+  return index >= highlightStartIndex ? DISTRIBUTION_HIGHLIGHT_COLOR : DISTRIBUTION_NEUTRAL_COLOR;
 }
 
 function createServer(): McpServer {
@@ -229,6 +240,102 @@ function createServer(): McpServer {
           title: chartTitle,
           total,
           steps: normalizedSteps,
+        },
+      };
+    },
+  );
+
+  registerAppTool(
+    server,
+    "render_distribution_chart",
+    {
+      title: "Render Distribution Chart",
+      description:
+        "Render a distribution chart with ordered buckets in the sandbox UI. The textual response includes bucket percentages while the UI shows bars, axes, tooltip, and legend.",
+      inputSchema: {
+        title: z.string().optional().describe("Optional chart title for textual output context."),
+        bins: z
+          .array(
+            z.object({
+              label: z.string().min(1).describe("Bucket label shown on the X axis."),
+              value: z.number().nonnegative().describe("Bucket value (must be >= 0)."),
+              color: z
+                .string()
+                .optional()
+                .describe("Optional hex color for this bucket (for example #6b7280)."),
+            }),
+          )
+          .min(1)
+          .refine((bins) => bins.some((bin) => bin.value > 0), {
+            message: "At least one bucket must have value greater than zero.",
+          })
+          .describe("Ordered distribution buckets from left to right."),
+      },
+      outputSchema: {
+        title: z.string(),
+        total: z.number(),
+        bins: z.array(
+          z.object({
+            label: z.string(),
+            value: z.number(),
+            percentage: z.number(),
+            cumulative: z.number(),
+            color: z.string(),
+          }),
+        ),
+      },
+      _meta: {
+        ui: {
+          resourceUri: RESOURCE_URI,
+          visibility: ["model", "app"],
+        },
+      },
+    },
+    async ({ title, bins }) => {
+      const total = bins.reduce((sum, bin) => sum + bin.value, 0);
+      let cumulativeValue = 0;
+
+      const normalizedBins = bins.map((bin, index) => {
+        cumulativeValue += bin.value;
+
+        const percentage = total > 0 ? (bin.value / total) * 100 : 0;
+        const cumulative = total > 0 ? (cumulativeValue / total) * 100 : 0;
+
+        return {
+          label: bin.label,
+          value: bin.value,
+          percentage: Number(percentage.toFixed(2)),
+          cumulative: Number(cumulative.toFixed(2)),
+          color: pickDistributionColor(bin.color, index, bins.length),
+        };
+      });
+
+      const chartTitle = title?.trim() ? title.trim() : "Distribution Chart";
+      const peakValue = Math.max(...normalizedBins.map((bin) => bin.value));
+      const textLines = normalizedBins.map(
+        (bin) =>
+          `- ${bin.label}: ${bin.value} (${bin.percentage.toFixed(2)}%, cumulative ${bin.cumulative.toFixed(2)}%)`,
+      );
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: [
+              `${chartTitle}`,
+              `Total: ${total}`,
+              `Peak bucket value: ${peakValue}`,
+              "",
+              ...textLines,
+              "",
+              "Interactive distribution bars and legend are rendered in the sandbox. Hover bars or legend items to see details.",
+            ].join("\n"),
+          },
+        ],
+        structuredContent: {
+          title: chartTitle,
+          total,
+          bins: normalizedBins,
         },
       };
     },
