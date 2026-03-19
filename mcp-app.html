@@ -172,7 +172,7 @@
 
       #chart-layout {
         display: grid;
-        grid-template-columns: minmax(220px, 320px) minmax(200px, 1fr);
+        grid-template-columns: minmax(260px, 1fr) minmax(200px, 240px);
         align-items: center;
         gap: 18px;
       }
@@ -193,6 +193,14 @@
 
       #chart.chart--funnel {
         height: min(66vh, 560px);
+      }
+
+      #chart.chart--distribution {
+        aspect-ratio: 1.5;
+      }
+
+      #chart.chart--time-series {
+        aspect-ratio: 1.68;
       }
 
       .slice {
@@ -226,6 +234,116 @@
         stroke-width: 2.8;
         filter: saturate(1.03) brightness(1.02);
         outline: none;
+      }
+
+      .distribution-grid-line {
+        stroke: color-mix(in srgb, var(--color-border-default, #64748b) 32%, transparent);
+        stroke-width: 1;
+      }
+
+      .distribution-axis-line {
+        stroke: color-mix(in srgb, var(--color-border-default, #64748b) 65%, transparent);
+        stroke-width: 1.2;
+      }
+
+      .distribution-axis-label,
+      .distribution-x-label {
+        fill: color-mix(in srgb, var(--color-text-secondary, #475569) 90%, transparent);
+        font: 500 12px/1.1 var(--font-sans, "Avenir Next", "Segoe UI", sans-serif);
+        letter-spacing: 0.01em;
+      }
+
+      .distribution-bar {
+        cursor: pointer;
+        opacity: 0.9;
+        stroke: color-mix(in srgb, var(--color-background-secondary, #ffffff) 74%, transparent);
+        stroke-width: 1.2;
+        transition: opacity 140ms ease, stroke-width 140ms ease, filter 140ms ease;
+      }
+
+      .distribution-bar:hover,
+      .distribution-bar:focus-visible,
+      .distribution-bar.is-active {
+        opacity: 1;
+        stroke-width: 2.4;
+        filter: saturate(1.06) brightness(1.04);
+        outline: none;
+      }
+
+      .time-series-grid-line {
+        stroke: color-mix(in srgb, var(--color-border-default, #64748b) 30%, transparent);
+        stroke-width: 1;
+      }
+
+      .time-series-axis-line {
+        stroke: color-mix(in srgb, var(--color-border-default, #64748b) 58%, transparent);
+        stroke-width: 1.2;
+      }
+
+      .time-series-axis-label,
+      .time-series-axis-title,
+      .time-series-x-label {
+        fill: color-mix(in srgb, var(--color-text-secondary, #475569) 92%, transparent);
+        font: 500 12px/1.15 var(--font-sans, "Avenir Next", "Segoe UI", sans-serif);
+        letter-spacing: 0.01em;
+      }
+
+      .time-series-axis-title {
+        font-size: 13px;
+      }
+
+      .time-series-series {
+        opacity: 0.96;
+        transition: opacity 140ms ease;
+      }
+
+      .time-series-series.is-muted {
+        opacity: 0.28;
+      }
+
+      .time-series-area {
+        opacity: 0.14;
+        pointer-events: none;
+      }
+
+      .time-series-line {
+        fill: none;
+        stroke-width: 3.2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        cursor: pointer;
+        transition: stroke-width 140ms ease, filter 140ms ease;
+      }
+
+      .time-series-line--dashed {
+        stroke-dasharray: 10 8;
+      }
+
+      .time-series-series.is-active .time-series-line {
+        stroke-width: 4;
+        filter: saturate(1.08) brightness(1.05);
+      }
+
+      .time-series-point {
+        cursor: pointer;
+        stroke: color-mix(in srgb, var(--color-background-secondary, #ffffff) 72%, transparent);
+        stroke-width: 1.8;
+        transition: r 140ms ease, stroke-width 140ms ease, filter 140ms ease;
+      }
+
+      .time-series-point.is-annotated {
+        stroke-width: 2.4;
+      }
+
+      .time-series-series.is-active .time-series-point {
+        filter: saturate(1.12) brightness(1.08);
+      }
+
+      .time-series-annotation-ring {
+        fill: none;
+        stroke-width: 1.6;
+        opacity: 0.82;
+        pointer-events: none;
       }
 
       #legend {
@@ -268,6 +386,20 @@
         width: 10px;
         height: 10px;
         border-radius: 50%;
+        background: currentColor;
+        color: currentColor;
+      }
+
+      .legend-swatch--line {
+        width: 22px;
+        height: 0;
+        border-radius: 999px;
+        border-top: 3px solid currentColor;
+        background: transparent;
+      }
+
+      .legend-swatch--dashed {
+        border-top-style: dashed;
       }
 
       .legend-label {
@@ -332,6 +464,14 @@
         #chart.chart--funnel {
           width: min(86vw, 320px);
           height: min(60vh, 500px);
+        }
+
+        #chart.chart--distribution {
+          width: min(92vw, 520px);
+        }
+
+        #chart.chart--time-series {
+          width: min(92vw, 560px);
         }
       }
     </style>

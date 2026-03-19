@@ -24,6 +24,8 @@ const DEFAULT_COLORS = [
 ];
 const DISTRIBUTION_NEUTRAL_COLOR = "#6b7280";
 const DISTRIBUTION_HIGHLIGHT_COLOR = "#3b82f6";
+const TIMESERIES_DEFAULT_LEFT_AXIS_LABEL = "Left Axis";
+const TIMESERIES_DEFAULT_RIGHT_AXIS_LABEL = "Right Axis";
 
 const port = Number.parseInt(process.env.PORT ?? process.env.MCP_PORT ?? "3003", 10);
 const host = process.env.HOST ?? "127.0.0.1";
@@ -43,6 +45,11 @@ function pickDistributionColor(color: string | undefined, index: number, totalBi
 
   const highlightStartIndex = Math.floor(totalBins / 2);
   return index >= highlightStartIndex ? DISTRIBUTION_HIGHLIGHT_COLOR : DISTRIBUTION_NEUTRAL_COLOR;
+}
+
+function normalizeAxisLabel(label: string | undefined, fallback: string): string {
+  const trimmed = label?.trim();
+  return trimmed ? trimmed : fallback;
 }
 
 function createServer(): McpServer {
@@ -336,6 +343,223 @@ function createServer(): McpServer {
           title: chartTitle,
           total,
           bins: normalizedBins,
+        },
+      };
+    },
+  );
+
+  registerAppTool(
+    server,
+    "render_annotated_time_series_chart",
+    {
+      title: "Render Annotated Time Series Chart",
+      description:
+        "Render an annotated multi-series time series chart in the sandbox UI with optional dual Y axes, custom line styles, and hover legend.",
+      inputSchema: {
+        title: z.string().optional().describe("Optional chart title for textual output context."),
+        leftAxisLabel: z
+          .string()
+          .optional()
+          .describe(`Optional label for the left Y axis (defaults to "${TIMESERIES_DEFAULT_LEFT_AXIS_LABEL}").`),
+        rightAxisLabel: z
+          .string()
+          .optional()
+          .describe(`Optional label for the right Y axis (defaults to "${TIMESERIES_DEFAULT_RIGHT_AXIS_LABEL}").`),
+        series: z
+          .array(
+            z.object({
+              name: z.string().min(1).describe("Series display name shown in the legend."),
+              axis: z
+                .enum(["left", "right"])
+                .optional()
+                .describe("Y-axis binding for this series. Defaults to left."),
+              lineStyle: z
+                .enum(["solid", "dashed"])
+                .optional()
+                .describe("Line style for this series. Defaults to solid on left-axis series and dashed on right-axis series."),
+              fillArea: z
+                .boolean()
+                .optional()
+                .describe("Whether to render an area fill under the line. Defaults to true on the first series and false otherwise."),
+              color: z
+                .string()
+                .optional()
+                .describe("Optional hex color for this series (for example #2563eb)."),
+              points: z
+                .array(
+                  z.object({
+                    time: z.string().min(1).describe("Ordered time label (for example Jan or 2026-01)."),
+                    value: z.number().describe("Series value at this time point."),
+                    annotation: z
+                      .string()
+                      .optional()
+                      .describe("Optional annotation text attached to this point."),
+                  }),
+                )
+                .min(2)
+                .describe("Ordered points for this series."),
+            }),
+          )
+          .min(1)
+          .refine(
+            (series) =>
+              series.some((entry) =>
+                entry.points.some(
+                  (point) => typeof point.annotation === "string" && point.annotation.trim().length > 0,
+                ),
+              ),
+            {
+              message: "At least one point annotation is required.",
+            },
+          )
+          .describe("Time series entries to render."),
+      },
+      outputSchema: {
+        title: z.string(),
+        totalPoints: z.number(),
+        leftAxisLabel: z.string(),
+        rightAxisLabel: z.string(),
+        xValues: z.array(z.string()),
+        series: z.array(
+          z.object({
+            name: z.string(),
+            axis: z.enum(["left", "right"]),
+            lineStyle: z.enum(["solid", "dashed"]),
+            fillArea: z.boolean(),
+            color: z.string(),
+            min: z.number(),
+            max: z.number(),
+            latest: z.number(),
+            points: z.array(
+              z.object({
+                time: z.string(),
+                value: z.number(),
+                annotation: z.string().optional(),
+              }),
+            ),
+          }),
+        ),
+        annotations: z.array(
+          z.object({
+            seriesName: z.string(),
+            time: z.string(),
+            value: z.number(),
+            axis: z.enum(["left", "right"]),
+            text: z.string(),
+          }),
+        ),
+      },
+      _meta: {
+        ui: {
+          resourceUri: RESOURCE_URI,
+          visibility: ["model", "app"],
+        },
+      },
+    },
+    async ({ title, leftAxisLabel, rightAxisLabel, series }) => {
+      const xValues: string[] = [];
+      const seenXValues = new Set<string>();
+
+      const normalizedSeries = series.map((entry, index) => {
+        const points = entry.points.map((point) => {
+          const trimmedTime = point.time.trim();
+          const time = trimmedTime.length > 0 ? trimmedTime : point.time;
+          const trimmedAnnotation = point.annotation?.trim();
+          const annotation = trimmedAnnotation && trimmedAnnotation.length > 0 ? trimmedAnnotation : undefined;
+
+          if (!seenXValues.has(time)) {
+            seenXValues.add(time);
+            xValues.push(time);
+          }
+
+          return {
+            time,
+            value: point.value,
+            annotation,
+          };
+        });
+
+        const values = points.map((point) => point.value);
+
+        return {
+          name: entry.name.trim() || `Series ${index + 1}`,
+          axis: entry.axis ?? "left",
+          lineStyle: entry.lineStyle ?? ((entry.axis ?? "left") === "right" ? "dashed" : "solid"),
+          fillArea: entry.fillArea ?? index === 0,
+          color: pickColor(entry.color, index),
+          min: Math.min(...values),
+          max: Math.max(...values),
+          latest: values[values.length - 1] ?? values[0] ?? 0,
+          points,
+        };
+      });
+
+      const xOrder = new Map(xValues.map((value, index) => [value, index]));
+      const sortedSeries = normalizedSeries.map((entry) => ({
+        ...entry,
+        points: [...entry.points].sort((a, b) => {
+          const aIndex = xOrder.get(a.time) ?? 0;
+          const bIndex = xOrder.get(b.time) ?? 0;
+          return aIndex - bIndex;
+        }),
+      }));
+
+      const annotations = sortedSeries.flatMap((entry) =>
+        entry.points
+          .filter((point) => typeof point.annotation === "string" && point.annotation.length > 0)
+          .map((point) => ({
+            seriesName: entry.name,
+            time: point.time,
+            value: point.value,
+            axis: entry.axis,
+            text: point.annotation as string,
+          })),
+      );
+
+      const chartTitle = title?.trim() ? title.trim() : "Annotated Time Series";
+      const normalizedLeftAxisLabel = normalizeAxisLabel(leftAxisLabel, TIMESERIES_DEFAULT_LEFT_AXIS_LABEL);
+      const normalizedRightAxisLabel = normalizeAxisLabel(rightAxisLabel, TIMESERIES_DEFAULT_RIGHT_AXIS_LABEL);
+
+      const seriesSummaryLines = sortedSeries.map((entry) => {
+        const axisLabel = entry.axis === "left" ? normalizedLeftAxisLabel : normalizedRightAxisLabel;
+        return `- ${entry.name} [${axisLabel}] latest ${entry.latest.toLocaleString()} (min ${entry.min.toLocaleString()}, max ${entry.max.toLocaleString()})`;
+      });
+
+      const annotationLines = annotations.slice(0, 8).map((annotation) => {
+        const axisLabel = annotation.axis === "left" ? normalizedLeftAxisLabel : normalizedRightAxisLabel;
+        return `- ${annotation.time} • ${annotation.seriesName} (${axisLabel}): ${annotation.text}`;
+      });
+
+      const annotationOverflow = annotations.length > 8 ? [`- ...and ${annotations.length - 8} more`] : [];
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: [
+              `${chartTitle}`,
+              `Series: ${sortedSeries.length}`,
+              `Time points: ${xValues.length}`,
+              `Annotations: ${annotations.length}`,
+              "",
+              ...seriesSummaryLines,
+              "",
+              "Highlighted annotations:",
+              ...annotationLines,
+              ...annotationOverflow,
+              "",
+              "Interactive annotated time-series chart and legend are rendered in the sandbox. Hover lines, points, or legend items to inspect values and notes.",
+            ].join("\n"),
+          },
+        ],
+        structuredContent: {
+          title: chartTitle,
+          totalPoints: xValues.length,
+          leftAxisLabel: normalizedLeftAxisLabel,
+          rightAxisLabel: normalizedRightAxisLabel,
+          xValues,
+          series: sortedSeries,
+          annotations,
         },
       };
     },

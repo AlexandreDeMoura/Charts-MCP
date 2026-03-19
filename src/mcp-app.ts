@@ -3,6 +3,7 @@ import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables } from
 import { createDistributionChartView } from "./charts/distribution";
 import { createFunnelChartView } from "./charts/funnel";
 import { createPieChartView } from "./charts/pie";
+import { createAnnotatedTimeSeriesChartView } from "./charts/time-series";
 
 const chartNode = document.getElementById("chart");
 const legendNode = document.getElementById("legend");
@@ -70,6 +71,14 @@ const distributionChartView = createDistributionChartView({
   tooltipElement,
 });
 
+const annotatedTimeSeriesChartView = createAnnotatedTimeSeriesChartView({
+  chartElement,
+  legendElement,
+  titleElement,
+  totalElement,
+  tooltipElement,
+});
+
 const app = new App({
   name: "charts-view",
   version: "1.0.0",
@@ -108,7 +117,7 @@ type SvgExportPayload = {
   height: number;
 };
 
-const chartViews: ChartView[] = [distributionChartView, funnelChartView, pieChartView];
+const chartViews: ChartView[] = [annotatedTimeSeriesChartView, distributionChartView, funnelChartView, pieChartView];
 let exportMenuOpen = false;
 let exportInProgress = false;
 
@@ -159,7 +168,11 @@ function sanitizeFilenameSegment(value: string): string {
     .slice(0, 64);
 }
 
-function inferChartKind(): "distribution" | "pie" | "funnel" | "chart" {
+function inferChartKind(): "distribution" | "pie" | "funnel" | "time-series" | "chart" {
+  if (chartElement.classList.contains("chart--time-series")) {
+    return "time-series";
+  }
+
   if (chartElement.classList.contains("chart--distribution")) {
     return "distribution";
   }

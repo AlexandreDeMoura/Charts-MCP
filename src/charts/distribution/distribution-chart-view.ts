@@ -166,7 +166,7 @@ export function createDistributionChartView(dom: DistributionChartDom): Distribu
     chartElement.innerHTML = "";
     legendElement.innerHTML = "";
     chartElement.classList.add("chart--distribution");
-    chartElement.classList.remove("chart--pie", "chart--funnel");
+    chartElement.classList.remove("chart--pie", "chart--funnel", "chart--time-series");
     titleElement.textContent = data.title;
 
     const maxValue = Math.max(...data.bins.map((bin) => bin.value), 0);

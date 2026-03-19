@@ -169,7 +169,7 @@ export function createFunnelChartView(dom: FunnelChartDom): FunnelChartView {
     chartElement.innerHTML = "";
     legendElement.innerHTML = "";
     chartElement.classList.add("chart--funnel");
-    chartElement.classList.remove("chart--pie", "chart--distribution");
+    chartElement.classList.remove("chart--pie", "chart--distribution", "chart--time-series");
     titleElement.textContent = data.title;
     const startValue = data.steps[0].value;
     const endValue = data.steps[data.steps.length - 1].value;
