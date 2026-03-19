@@ -666,12 +666,11 @@ export function createAnnotatedTimeSeriesChartView(dom: TimeSeriesChartDom): Tim
         );
         pointNode.setAttribute("tabindex", "0");
 
-        const tooltipParts = [`${entry.name} • ${coord.point.time}: ${formatNumber(coord.point.value)}`];
-        if (coord.point.annotation) {
-          tooltipParts.push(coord.point.annotation);
-        }
-
-        const pointTooltipText = tooltipParts.join(" • ");
+        const pointSummary = `${entry.name}: ${formatNumber(coord.point.value)}`;
+        const pointContext = coord.point.annotation
+          ? `${coord.point.time} ${coord.point.annotation}`
+          : coord.point.time;
+        const pointTooltipText = `${pointSummary} • ${pointContext}`;
 
         pointNode.addEventListener("pointerenter", (event) => {
           setActiveSeries(seriesIndex);
