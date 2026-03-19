@@ -1,3 +1,5 @@
+import { createTooltipController, type ChartTooltipContent } from "../shared/tooltip";
+
 type DistributionBin = {
   label: string;
   value: number;
@@ -31,10 +33,6 @@ const DISTRIBUTION_HIGHLIGHT_COLOR = "#3b82f6";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
 }
 
 function isHexColor(value: unknown): value is string {
@@ -141,26 +139,7 @@ function normalizeDistributionInput(raw: unknown): DistributionData | null {
 
 export function createDistributionChartView(dom: DistributionChartDom): DistributionChartView {
   const { chartElement, legendElement, titleElement, totalElement, tooltipElement } = dom;
-
-  function moveTooltip(x: number, y: number): void {
-    const margin = 8;
-    const offset = 12;
-    const maxX = window.innerWidth - tooltipElement.offsetWidth - margin;
-    const maxY = window.innerHeight - tooltipElement.offsetHeight - margin;
-
-    tooltipElement.style.left = `${clamp(x + offset, margin, maxX)}px`;
-    tooltipElement.style.top = `${clamp(y + offset, margin, maxY)}px`;
-  }
-
-  function showTooltip(text: string, x: number, y: number): void {
-    tooltipElement.textContent = text;
-    tooltipElement.hidden = false;
-    moveTooltip(x, y);
-  }
-
-  function hideTooltip(): void {
-    tooltipElement.hidden = true;
-  }
+  const { moveTooltip, showTooltip, hideTooltip } = createTooltipController(tooltipElement);
 
   function renderDistribution(data: DistributionData): void {
     chartElement.innerHTML = "";
@@ -249,11 +228,12 @@ export function createDistributionChartView(dom: DistributionChartDom): Distribu
       const rawBarHeight = (bin.value / safeMaxValue) * plotHeight;
       const barHeight = bin.value > 0 ? Math.max(2, rawBarHeight) : 1;
       const y = xAxisY - barHeight;
-      const tooltipText = [
-        `${bin.label}: ${formatNumber(bin.value)}`,
-        `${bin.percentage.toFixed(2)}%`,
-        `Cumulative ${bin.cumulative.toFixed(2)}%`,
-      ].join(" • ");
+      const tooltipContent: ChartTooltipContent = {
+        title: bin.label,
+        value: formatNumber(bin.value),
+        details: `${bin.percentage.toFixed(2)}% • Cumulative ${bin.cumulative.toFixed(2)}%`,
+        color: bin.color,
+      };
 
       const bar = document.createElementNS(SVG_NS, "rect");
       bar.setAttribute("x", `${x}`);
@@ -268,7 +248,7 @@ export function createDistributionChartView(dom: DistributionChartDom): Distribu
 
       bar.addEventListener("pointerenter", (event) => {
         setActiveBucket(index);
-        showTooltip(tooltipText, event.clientX, event.clientY);
+        showTooltip(tooltipContent, event.clientX, event.clientY);
       });
 
       bar.addEventListener("pointermove", (event) => {
@@ -283,7 +263,7 @@ export function createDistributionChartView(dom: DistributionChartDom): Distribu
       bar.addEventListener("focus", () => {
         setActiveBucket(index);
         const rect = bar.getBoundingClientRect();
-        showTooltip(tooltipText, rect.left + rect.width / 2, rect.top + rect.height / 2);
+        showTooltip(tooltipContent, rect.left + rect.width / 2, rect.top + rect.height / 2);
       });
 
       bar.addEventListener("blur", () => {
@@ -320,7 +300,7 @@ export function createDistributionChartView(dom: DistributionChartDom): Distribu
       legendItem.addEventListener("pointerenter", () => {
         setActiveBucket(index);
         const rect = legendItem.getBoundingClientRect();
-        showTooltip(tooltipText, rect.left + rect.width / 2, rect.top + rect.height / 2);
+        showTooltip(tooltipContent, rect.left + rect.width / 2, rect.top + rect.height / 2);
       });
 
       legendItem.addEventListener("pointerleave", () => {
@@ -331,7 +311,7 @@ export function createDistributionChartView(dom: DistributionChartDom): Distribu
       legendItem.addEventListener("focus", () => {
         setActiveBucket(index);
         const rect = legendItem.getBoundingClientRect();
-        showTooltip(tooltipText, rect.left + rect.width / 2, rect.top + rect.height / 2);
+        showTooltip(tooltipContent, rect.left + rect.width / 2, rect.top + rect.height / 2);
       });
 
       legendItem.addEventListener("blur", () => {

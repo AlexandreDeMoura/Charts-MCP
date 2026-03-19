@@ -1,3 +1,5 @@
+import { createTooltipController, type ChartTooltipContent } from "../shared/tooltip";
+
 type AxisSide = "left" | "right";
 type LineStyle = "solid" | "dashed";
 
@@ -69,10 +71,6 @@ const GRID_TICK_COUNT = 5;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
 }
 
 function isHexColor(value: unknown): value is string {
@@ -375,26 +373,7 @@ function normalizeTimeSeriesInput(raw: unknown): TimeSeriesData | null {
 
 export function createAnnotatedTimeSeriesChartView(dom: TimeSeriesChartDom): TimeSeriesChartView {
   const { chartElement, legendElement, titleElement, totalElement, tooltipElement } = dom;
-
-  function moveTooltip(x: number, y: number): void {
-    const margin = 8;
-    const offset = 12;
-    const maxX = window.innerWidth - tooltipElement.offsetWidth - margin;
-    const maxY = window.innerHeight - tooltipElement.offsetHeight - margin;
-
-    tooltipElement.style.left = `${clamp(x + offset, margin, maxX)}px`;
-    tooltipElement.style.top = `${clamp(y + offset, margin, maxY)}px`;
-  }
-
-  function showTooltip(text: string, x: number, y: number): void {
-    tooltipElement.textContent = text;
-    tooltipElement.hidden = false;
-    moveTooltip(x, y);
-  }
-
-  function hideTooltip(): void {
-    tooltipElement.hidden = true;
-  }
+  const { moveTooltip, showTooltip, hideTooltip } = createTooltipController(tooltipElement);
 
   function renderTimeSeries(data: TimeSeriesData): void {
     chartElement.innerHTML = "";
@@ -612,15 +591,16 @@ export function createAnnotatedTimeSeriesChartView(dom: TimeSeriesChartDom): Tim
       const latestPoint = points[points.length - 1]?.point;
       const axisName = entry.axis === "left" ? data.leftAxisLabel : data.rightAxisLabel;
       const seriesAnnotationCount = points.filter((point) => typeof point.point.annotation === "string").length;
-      const seriesTooltipText = [
-        `${entry.name} (${axisName})`,
-        `Latest ${formatNumber(entry.latest)}`,
-        `${seriesAnnotationCount} annotation${seriesAnnotationCount === 1 ? "" : "s"}`,
-      ].join(" • ");
+      const seriesTooltipContent: ChartTooltipContent = {
+        title: `${entry.name} (${axisName})`,
+        value: `Latest ${formatNumber(entry.latest)}`,
+        details: `${seriesAnnotationCount} annotation${seriesAnnotationCount === 1 ? "" : "s"}`,
+        color: entry.color,
+      };
 
       linePath.addEventListener("pointerenter", (event) => {
         setActiveSeries(seriesIndex);
-        showTooltip(seriesTooltipText, event.clientX, event.clientY);
+        showTooltip(seriesTooltipContent, event.clientX, event.clientY);
       });
 
       linePath.addEventListener("pointermove", (event) => {
@@ -636,7 +616,7 @@ export function createAnnotatedTimeSeriesChartView(dom: TimeSeriesChartDom): Tim
         setActiveSeries(seriesIndex);
         const fallbackPoint = latestPoint ?? points[0].point;
         const index = xOrder.get(fallbackPoint.time) ?? 0;
-        showTooltip(seriesTooltipText, xForIndex(index), yForValue(fallbackPoint.value, entry.axis));
+        showTooltip(seriesTooltipContent, xForIndex(index), yForValue(fallbackPoint.value, entry.axis));
       });
 
       linePath.addEventListener("blur", () => {
@@ -666,15 +646,16 @@ export function createAnnotatedTimeSeriesChartView(dom: TimeSeriesChartDom): Tim
         );
         pointNode.setAttribute("tabindex", "0");
 
-        const pointSummary = `${entry.name}: ${formatNumber(coord.point.value)}`;
-        const pointContext = coord.point.annotation
-          ? `${coord.point.time} ${coord.point.annotation}`
-          : coord.point.time;
-        const pointTooltipText = `${pointSummary} • ${pointContext}`;
+        const pointTooltipContent: ChartTooltipContent = {
+          title: `${entry.name} • ${coord.point.time}`,
+          value: formatNumber(coord.point.value),
+          details: coord.point.annotation,
+          color: entry.color,
+        };
 
         pointNode.addEventListener("pointerenter", (event) => {
           setActiveSeries(seriesIndex);
-          showTooltip(pointTooltipText, event.clientX, event.clientY);
+          showTooltip(pointTooltipContent, event.clientX, event.clientY);
         });
 
         pointNode.addEventListener("pointermove", (event) => {
@@ -688,7 +669,7 @@ export function createAnnotatedTimeSeriesChartView(dom: TimeSeriesChartDom): Tim
 
         pointNode.addEventListener("focus", () => {
           setActiveSeries(seriesIndex);
-          showTooltip(pointTooltipText, coord.x, coord.y);
+          showTooltip(pointTooltipContent, coord.x, coord.y);
         });
 
         pointNode.addEventListener("blur", () => {
@@ -727,7 +708,7 @@ export function createAnnotatedTimeSeriesChartView(dom: TimeSeriesChartDom): Tim
       legendItem.addEventListener("pointerenter", () => {
         setActiveSeries(seriesIndex);
         const rect = legendItem.getBoundingClientRect();
-        showTooltip(seriesTooltipText, rect.left + rect.width / 2, rect.top + rect.height / 2);
+        showTooltip(seriesTooltipContent, rect.left + rect.width / 2, rect.top + rect.height / 2);
       });
 
       legendItem.addEventListener("pointerleave", () => {
@@ -738,7 +719,7 @@ export function createAnnotatedTimeSeriesChartView(dom: TimeSeriesChartDom): Tim
       legendItem.addEventListener("focus", () => {
         setActiveSeries(seriesIndex);
         const rect = legendItem.getBoundingClientRect();
-        showTooltip(seriesTooltipText, rect.left + rect.width / 2, rect.top + rect.height / 2);
+        showTooltip(seriesTooltipContent, rect.left + rect.width / 2, rect.top + rect.height / 2);
       });
 
       legendItem.addEventListener("blur", () => {

@@ -1,3 +1,5 @@
+import { createTooltipController, type ChartTooltipContent } from "../shared/tooltip";
+
 type FunnelStep = {
   label: string;
   value: number;
@@ -49,10 +51,6 @@ function normalizeHexColor(value: unknown, fallbackIndex: number): string {
   }
 
   return DEFAULT_COLORS[fallbackIndex % DEFAULT_COLORS.length];
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
 }
 
 function formatNumber(value: number): string {
@@ -144,26 +142,7 @@ function buildTrapezoidPath(centerX: number, yTop: number, yBottom: number, topW
 
 export function createFunnelChartView(dom: FunnelChartDom): FunnelChartView {
   const { chartElement, legendElement, titleElement, totalElement, tooltipElement } = dom;
-
-  function moveTooltip(x: number, y: number): void {
-    const margin = 8;
-    const offset = 12;
-    const maxX = window.innerWidth - tooltipElement.offsetWidth - margin;
-    const maxY = window.innerHeight - tooltipElement.offsetHeight - margin;
-
-    tooltipElement.style.left = `${clamp(x + offset, margin, maxX)}px`;
-    tooltipElement.style.top = `${clamp(y + offset, margin, maxY)}px`;
-  }
-
-  function showTooltip(text: string, x: number, y: number): void {
-    tooltipElement.textContent = text;
-    tooltipElement.hidden = false;
-    moveTooltip(x, y);
-  }
-
-  function hideTooltip(): void {
-    tooltipElement.hidden = true;
-  }
+  const { moveTooltip, showTooltip, hideTooltip } = createTooltipController(tooltipElement);
 
   function renderFunnel(data: FunnelData): void {
     chartElement.innerHTML = "";
@@ -229,15 +208,16 @@ export function createFunnelChartView(dom: FunnelChartDom): FunnelChartView {
       segment.setAttribute("tabindex", "0");
       segments.push(segment);
 
-      const tooltipText = [
-        `${step.label}: ${formatNumber(step.value)}`,
-        `${step.percentage.toFixed(1)}% of first step`,
-        `Drop-off ${formatNumber(step.dropOff)}`,
-      ].join(" • ");
+      const tooltipContent: ChartTooltipContent = {
+        title: step.label,
+        value: formatNumber(step.value),
+        details: `${step.percentage.toFixed(1)}% of first • Drop-off ${formatNumber(step.dropOff)}`,
+        color: step.color,
+      };
 
       segment.addEventListener("pointerenter", (event) => {
         setActiveStep(index);
-        showTooltip(tooltipText, event.clientX, event.clientY);
+        showTooltip(tooltipContent, event.clientX, event.clientY);
       });
 
       segment.addEventListener("pointermove", (event) => {
@@ -252,7 +232,7 @@ export function createFunnelChartView(dom: FunnelChartDom): FunnelChartView {
       segment.addEventListener("focus", () => {
         setActiveStep(index);
         const rect = segment.getBoundingClientRect();
-        showTooltip(tooltipText, rect.left + rect.width / 2, rect.top + rect.height / 2);
+        showTooltip(tooltipContent, rect.left + rect.width / 2, rect.top + rect.height / 2);
       });
 
       segment.addEventListener("blur", () => {
@@ -282,7 +262,7 @@ export function createFunnelChartView(dom: FunnelChartDom): FunnelChartView {
       legendItem.addEventListener("pointerenter", () => {
         setActiveStep(index);
         const rect = legendItem.getBoundingClientRect();
-        showTooltip(tooltipText, rect.left + rect.width / 2, rect.top + rect.height / 2);
+        showTooltip(tooltipContent, rect.left + rect.width / 2, rect.top + rect.height / 2);
       });
 
       legendItem.addEventListener("pointerleave", () => {
@@ -293,7 +273,7 @@ export function createFunnelChartView(dom: FunnelChartDom): FunnelChartView {
       legendItem.addEventListener("focus", () => {
         setActiveStep(index);
         const rect = legendItem.getBoundingClientRect();
-        showTooltip(tooltipText, rect.left + rect.width / 2, rect.top + rect.height / 2);
+        showTooltip(tooltipContent, rect.left + rect.width / 2, rect.top + rect.height / 2);
       });
 
       legendItem.addEventListener("blur", () => {

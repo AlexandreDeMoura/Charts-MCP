@@ -1,3 +1,5 @@
+import { createTooltipController, type ChartTooltipContent } from "../shared/tooltip";
+
 type PieSlice = {
   label: string;
   value: number;
@@ -149,10 +151,6 @@ function buildSlicePath(
   ].join(" ");
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
-}
-
 function formatNumber(value: number): string {
   return value.toLocaleString(undefined, {
     maximumFractionDigits: 2,
@@ -161,26 +159,7 @@ function formatNumber(value: number): string {
 
 export function createPieChartView(dom: PieChartDom): PieChartView {
   const { chartElement, legendElement, titleElement, totalElement, tooltipElement } = dom;
-
-  function moveTooltip(x: number, y: number): void {
-    const margin = 8;
-    const offset = 12;
-    const maxX = window.innerWidth - tooltipElement.offsetWidth - margin;
-    const maxY = window.innerHeight - tooltipElement.offsetHeight - margin;
-
-    tooltipElement.style.left = `${clamp(x + offset, margin, maxX)}px`;
-    tooltipElement.style.top = `${clamp(y + offset, margin, maxY)}px`;
-  }
-
-  function showTooltip(text: string, x: number, y: number): void {
-    tooltipElement.textContent = text;
-    tooltipElement.hidden = false;
-    moveTooltip(x, y);
-  }
-
-  function hideTooltip(): void {
-    tooltipElement.hidden = true;
-  }
+  const { moveTooltip, showTooltip, hideTooltip } = createTooltipController(tooltipElement);
 
   function renderPieChart(data: PieData): void {
     chartElement.innerHTML = "";
@@ -226,11 +205,16 @@ export function createPieChartView(dom: PieChartDom): PieChartView {
       path.setAttribute("tabindex", "0");
       paths.push(path);
 
-      const tooltipText = `${slice.label}: ${formatNumber(slice.value)} (${slice.percentage.toFixed(2)}%)`;
+      const tooltipContent: ChartTooltipContent = {
+        title: slice.label,
+        value: formatNumber(slice.value),
+        details: `${slice.percentage.toFixed(2)}%`,
+        color: slice.color,
+      };
 
       path.addEventListener("pointerenter", (event) => {
         setActiveSlice(index);
-        showTooltip(tooltipText, event.clientX, event.clientY);
+        showTooltip(tooltipContent, event.clientX, event.clientY);
       });
 
       path.addEventListener("pointermove", (event) => {
@@ -245,7 +229,7 @@ export function createPieChartView(dom: PieChartDom): PieChartView {
       path.addEventListener("focus", () => {
         setActiveSlice(index);
         const rect = path.getBoundingClientRect();
-        showTooltip(tooltipText, rect.left + rect.width / 2, rect.top + rect.height / 2);
+        showTooltip(tooltipContent, rect.left + rect.width / 2, rect.top + rect.height / 2);
       });
 
       path.addEventListener("blur", () => {
@@ -275,7 +259,7 @@ export function createPieChartView(dom: PieChartDom): PieChartView {
       legendItem.addEventListener("pointerenter", () => {
         setActiveSlice(index);
         const rect = legendItem.getBoundingClientRect();
-        showTooltip(tooltipText, rect.left + rect.width / 2, rect.top + rect.height / 2);
+        showTooltip(tooltipContent, rect.left + rect.width / 2, rect.top + rect.height / 2);
       });
 
       legendItem.addEventListener("pointerleave", () => {
@@ -286,7 +270,7 @@ export function createPieChartView(dom: PieChartDom): PieChartView {
       legendItem.addEventListener("focus", () => {
         setActiveSlice(index);
         const rect = legendItem.getBoundingClientRect();
-        showTooltip(tooltipText, rect.left + rect.width / 2, rect.top + rect.height / 2);
+        showTooltip(tooltipContent, rect.left + rect.width / 2, rect.top + rect.height / 2);
       });
 
       legendItem.addEventListener("blur", () => {
